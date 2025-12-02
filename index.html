@@ -60,7 +60,7 @@
 
 <body>
 
-<h1>Realtime Roulette Wheel</h1>
+<h1>Secret Santa Wheel</h1>
 
 <div id="loginBox">
     <h2>Enter Your Name</h2>
@@ -274,7 +274,7 @@ function pickWinner() {
     let index = Math.floor(adjusted / sliceAngle);
     let winner = pool[index];
 
-    alert("🎉 Winner: " + winner);
+    alert("🎉 You picked: " + winner);
 
     /* REMOVE ONLY FROM POOL — NEVER from roster */
     db.ref("pool").once("value", snap => {
@@ -293,7 +293,7 @@ function pickWinner() {
                 alert("⚠️ Someone else picked this at the same time! Try again!");
                 db.ref("spins/" + myName).remove();
             } else {
-                alert("🎉 Winner locked in: " + winner);
+                alert("🎉 Name locked in: " + winner);
             }
         });
     });
@@ -304,3 +304,4 @@ document.getElementById("spinBtn").onclick = spinWheel;
 
 </body>
 </html>
+
