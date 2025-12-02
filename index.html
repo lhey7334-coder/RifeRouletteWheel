@@ -94,11 +94,32 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let allNames = [];
+/*  ⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇  NEW FOR OPTION A  */
+let roster = []; // permanent list
+let pool = [];   // pickable names
+/*  ⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆ */
+
 let myName = null;
 
-db.ref("names").on("value", snap => {
-    allNames = snap.val() ? Object.values(snap.val()).map(n => n.toLowerCase()) : [];
+/* ---------------------------------------------
+   LOAD ROSTER (permanent list)
+   --------------------------------------------- */
+db.ref("roster").on("value", snap => {
+    roster = snap.val() ? Object.values(snap.val()).map(n => n.toLowerCase()) : [];
+});
+
+/* ---------------------------------------------
+   LOAD POOL (pickable names)
+   --------------------------------------------- */
+db.ref("pool").on("value", snap => {
+    let raw = snap.val() ? Object.values(snap.val()) : [];
+    if (myName) {
+        pool = raw.filter(n => n.toLowerCase() !== myName.toLowerCase());
+    } else {
+        pool = raw;
+    }
+    rotation = 0;
+    drawWheel();
 });
 
 function savePlayerName() {
@@ -110,7 +131,8 @@ function savePlayerName() {
         return;
     }
 
-    if (!allNames.includes(typed)) {
+    /* Login must validate from ROSTER only */
+    if (!roster.includes(typed)) {
         status.innerHTML = "❌ Your name is not in the player list.";
         return;
     }
@@ -124,13 +146,6 @@ function savePlayerName() {
         }
 
         status.innerHTML = "✅ Welcome! You may spin.";
-
-        db.ref("names").once("value", snap => {
-            const raw = snap.val() ? Object.values(snap.val()) : [];
-            names = raw.filter(n => n.toLowerCase() !== myName.toLowerCase());
-            rotation = 0;
-            drawWheel();
-        });
 
         document.getElementById("loginBox").style.display = "none";
         document.getElementById("wrapper").style.display = "block";
@@ -146,6 +161,8 @@ let rotation = 0;
 let spinning = false;
 
 function drawWheel() {
+    names = pool.slice();
+
     ctx.clearRect(0, 0, 500, 500);
     if (names.length === 0) return;
 
@@ -191,21 +208,8 @@ function drawWithRotation() {
     ctx.restore();
 }
 
-db.ref("names").on("value", snap => {
-    let raw = snap.val() ? Object.values(snap.val()) : [];
-
-    if (myName) {
-        names = raw.filter(n => n.toLowerCase() !== myName.toLowerCase());
-    } else {
-        names = raw;
-    }
-
-    rotation = 0;
-    drawWheel();
-});
-
 function spinWheel() {
-    if (spinning || names.length === 0) return;
+    if (spinning || pool.length === 0) return;
 
     db.ref("spins/" + myName).once("value", snap => {
         if (snap.exists()) {
@@ -249,41 +253,33 @@ function spinWheel() {
 }
 
 function pickWinner() {
-    const slices = names.length;
+    const slices = pool.length;
     const sliceAngle = 360 / slices;
 
     let deg = (rotation * 180 / Math.PI) % 360;
     let adjusted = (360 - deg + 360) % 360;
 
     let index = Math.floor(adjusted / sliceAngle);
-    let winner = names[index];
+    let winner = pool[index];
 
     alert("🎉 Winner: " + winner);
 
-    db.ref("names").once("value", snap => {
+    /* REMOVE ONLY FROM POOL — NEVER from roster */
+    db.ref("pool").once("value", snap => {
         let obj = snap.val();
         let keys = Object.keys(obj);
         let originalIndex = Object.values(obj).indexOf(winner);
 
-        const winnerRef = db.ref("names/" + keys[originalIndex]);
+        const winnerRef = db.ref("pool/" + keys[originalIndex]);
 
         winnerRef.transaction(currentValue => {
             if (currentValue === null) return;
             return null;
         }).then(result => {
 
-            /*  
-               -----------------------------------------------------
-               ⭐⭐ UPDATED SECTION — Allows a retry if duplicate picked
-               -----------------------------------------------------
-            */
             if (!result.committed) {
-                alert("⚠️ Someone else already picked this name at the same time. Try again!");
-
-                // Allow spin again
+                alert("⚠️ Someone else picked this at the same time! Try again!");
                 db.ref("spins/" + myName).remove();
-
-                spinning = false;
             } else {
                 alert("🎉 Winner locked in: " + winner);
             }
