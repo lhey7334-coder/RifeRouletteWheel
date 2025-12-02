@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Roulette Wheel</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background: #222;
+        color: #fff;
+        margin: 0;
+    }
+
+    #loginBox {
+        margin-top: 40px;
+    }
+
+    #wrapper {
+        display: none;
+        position: relative;
+        width: 500px;
+        margin: 30px auto;
+    }
+
+    #pointer {
+        width: 0;
+        height: 0;
+        border-top: 25px solid transparent;
+        border-bottom: 25px solid transparent;
+        border-right: 40px solid yellow;
+        position: absolute;
+        top: 50%;
+        right: -5px;
+        transform: translateY(-50%);
+        z-index: 999;
+    }
+
+    #wheelCanvas {
+        background: #111;
+        border-radius: 50%;
+    }
+
+    #spinBtn {
+        margin-top: 20px;
+        padding: 12px 30px;
+        font-size: 20px;
+        cursor: pointer;
+        border-radius: 10px;
+    }
+
+    #status {
+        margin-top: 10px;
+        font-size: 18px;
+        color: red;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>Realtime Roulette Wheel</h1>
+
+<div id="loginBox">
+    <h2>Enter Your Name</h2>
+    <input id="playerName" placeholder="Your name" style="padding:10px;font-size:18px;">
+    <br><br>
+    <button onclick="savePlayerName()" style="padding:10px 25px;font-size:18px;">Continue</button>
+    <p id="status"></p>
+</div>
+
+<div id="wrapper">
+    <div id="pointer"></div>
+    <canvas id="wheelCanvas" width="500" height="500"></canvas>
+</div>
+
+<button id="spinBtn" style="display:none;">🎡 SPIN</button>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCwpRezHGB1lana4k4i5Hd0-v3osGqEXoM",
+  authDomain: "roulette-wheel-d1b69.firebaseapp.com",
+  databaseURL: "https://roulette-wheel-d1b69-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "roulette-wheel-d1b69",
+  storageBucket: "roulette-wheel-d1b69.appspot.com",
+  messagingSenderId: "735451237306",
+  appId: "1:735451237306:web:cf27ffccf4dc239a3eab83",
+  measurementId: "G-B4L2W06CJZ"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allNames = [];
+let myName = null;
+
+db.ref("names").on("value", snap => {
+    allNames = snap.val() ? Object.values(snap.val()).map(n => n.toLowerCase()) : [];
+});
+
+function savePlayerName() {
+    const typed = document.getElementById("playerName").value.trim().toLowerCase();
+    const status = document.getElementById("status");
+
+    if (!typed) {
+        status.innerHTML = "❌ Enter your name.";
+        return;
+    }
+
+    if (!allNames.includes(typed)) {
+        status.innerHTML = "❌ Your name is not in the player list.";
+        return;
+    }
+
+    myName = typed;
+
+    db.ref("spins/" + myName).once("value", snap => {
+        if (snap.exists()) {
+            status.innerHTML = "⚠️ You already used your spin.";
+            return;
+        }
+
+        status.innerHTML = "✅ Welcome! You may spin.";
+
+        db.ref("names").once("value", snap => {
+            const raw = snap.val() ? Object.values(snap.val()) : [];
+            names = raw.filter(n => n.toLowerCase() !== myName.toLowerCase());
+            rotation = 0;
+            drawWheel();
+        });
+
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("wrapper").style.display = "block";
+        document.getElementById("spinBtn").style.display = "inline-block";
+    });
+}
+
+const canvas = document.getElementById("wheelCanvas");
+const ctx = canvas.getContext("2d");
+
+let names = [];
+let rotation = 0;
+let spinning = false;
+
+function drawWheel() {
+    ctx.clearRect(0, 0, 500, 500);
+    if (names.length === 0) return;
+
+    const slices = names.length;
+    const anglePerSlice = (2 * Math.PI) / slices;
+
+    const colors = [
+    "#e63946", "#f4a261", "#2a9d8f", "#264653",
+    "#e9c46a", "#8a4fff", "#ffbe0b", "#3a86ff",
+    "#ff006e", "#8338ec", "#fb5607", "#ffbe0b",
+    "#00f5d4", "#9b5de5", "#00bbf9", "#00f5d4"
+    ];
+
+    for (let i = 0; i < slices; i++) {
+        let start = i * anglePerSlice;
+        let end = start + anglePerSlice;
+
+        ctx.fillStyle = colors[i % colors.length];
+
+        ctx.beginPath();
+        ctx.moveTo(250, 250);
+        ctx.arc(250, 250, 250, start, end);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(250, 250);
+        ctx.rotate(start + anglePerSlice / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#fff";
+        ctx.font = "11px Arial";
+        ctx.fillText(names[i], 230, 10);
+        ctx.restore();
+    }
+}
+
+function drawWithRotation() {
+    ctx.save();
+    ctx.translate(250, 250);
+    ctx.rotate(rotation);
+    ctx.translate(-250, -250);
+    drawWheel();
+    ctx.restore();
+}
+
+db.ref("names").on("value", snap => {
+    let raw = snap.val() ? Object.values(snap.val()) : [];
+
+    if (myName) {
+        names = raw.filter(n => n.toLowerCase() !== myName.toLowerCase());
+    } else {
+        names = raw;
+    }
+
+    rotation = 0;
+    drawWheel();
+});
+
+function spinWheel() {
+    if (spinning || names.length === 0) return;
+
+    db.ref("spins/" + myName).once("value", snap => {
+        if (snap.exists()) {
+            alert("❌ You already used your spin.");
+            return;
+        }
+
+        db.ref("spins/" + myName).set(true);
+
+        spinning = true;
+        const extraRot = 360 * 10;
+        const randomRot = Math.random() * 360;
+        const targetRad = (extraRot + randomRot) * Math.PI / 180;
+
+        const duration = 4000;
+        let startTime = null;
+
+        function easeOut(t) {
+            return 1 - Math.pow(1 - t, 3);
+        }
+
+        function animate(time) {
+            if (!startTime) startTime = time;
+            const elapsed = time - startTime;
+
+            let progress = Math.min(elapsed / duration, 1);
+            rotation = targetRad * easeOut(progress);
+
+            drawWithRotation();
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                spinning = false;
+                pickWinner();
+            }
+        }
+
+        requestAnimationFrame(animate);
+    });
+}
+
+function pickWinner() {
+    const slices = names.length;
+    const sliceAngle = 360 / slices;
+
+    let deg = (rotation * 180 / Math.PI) % 360;
+    let adjusted = (360 - deg + 360) % 360;
+
+    let index = Math.floor(adjusted / sliceAngle);
+    let winner = names[index];
+
+    alert("🎉 Winner: " + winner);
+
+    db.ref("names").once("value", snap => {
+        let obj = snap.val();
+        let keys = Object.keys(obj);
+        let originalIndex = Object.values(obj).indexOf(winner);
+
+        const winnerRef = db.ref("names/" + keys[originalIndex]);
+
+        winnerRef.transaction(currentValue => {
+            if (currentValue === null) return;
+            return null;
+        }).then(result => {
+
+            /*  
+               -----------------------------------------------------
+               ⭐⭐ UPDATED SECTION — Allows a retry if duplicate picked
+               -----------------------------------------------------
+            */
+            if (!result.committed) {
+                alert("⚠️ Someone else already picked this name at the same time. Try again!");
+
+                // Allow spin again
+                db.ref("spins/" + myName).remove();
+
+                spinning = false;
+            } else {
+                alert("🎉 Winner locked in: " + winner);
+            }
+        });
+    });
+}
+
+document.getElementById("spinBtn").onclick = spinWheel;
+</script>
+
+</body>
+</html>
