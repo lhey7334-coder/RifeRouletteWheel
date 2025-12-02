@@ -293,7 +293,7 @@ function pickWinner() {
                 alert("⚠️ Someone else picked this at the same time! Try again!");
                 db.ref("spins/" + myName).remove();
             } else {
-                alert("🎉 Name locked in: " + winner);
+                alert("🎉 You picked: " + winner);
             }
         });
     });
@@ -304,4 +304,5 @@ document.getElementById("spinBtn").onclick = spinWheel;
 
 </body>
 </html>
+
 
